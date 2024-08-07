@@ -4,6 +4,7 @@ const pool = require('../database/db');
 const isValidUUIDV4 = require('../util/uuidV4Regex');
 const asyncWrapper = require('../middlewares/async');
 const { createCustomError } = require('../errors/custom-error');
+const { query } = require('express');
 
 const BlogInsertionProps = z.object({
   title: z.string().trim().min(3),
@@ -32,25 +33,30 @@ const insertABlog = asyncWrapper(async (req, res, next) => {
 const BlogsPaginationProps = z.object({
   categoryId: z.coerce.number().nullable(),
   page: z.coerce.number(),
+  limit: z.coerce.number().nullable(),
 });
 
 const getBlogs = asyncWrapper(async (req, res, next) => {
-  const { categoryId, page } = req.query;
+  const { categoryId, page, limit } = req.query;
 
-  const validatedProps = BlogsPaginationProps.safeParse({ categoryId, page });
+  const validatedProps = BlogsPaginationProps.safeParse({
+    categoryId,
+    page,
+    limit,
+  });
   if (!validatedProps.success)
     return next(createCustomError('Invalid queries', 401));
 
   const currentPage = parseInt(validatedProps.data.page) || 1;
-  const limit = 6;
-  const offset = (currentPage - 1) * limit;
+  const BlogLimit = parseInt(validatedProps.data.limit) || 6;
+  const offset = (currentPage - 1) * BlogLimit;
 
   const q = categoryId
     ? 'SELECT * FROM blogs WHERE categoryid = $1  ORDER BY created_at LIMIT $2 OFFSET $3'
     : 'SELECT * FROM blogs ORDER BY created_at LIMIT $1 OFFSET $2';
   const values = categoryId
-    ? [validatedProps.data.categoryId, limit, offset]
-    : [limit, offset];
+    ? [validatedProps.data.categoryId, BlogLimit, offset]
+    : [BlogLimit, offset];
 
   const { rows } = await pool.query(q, values);
   if (rows.length === 0)
@@ -62,12 +68,13 @@ const getBlogs = asyncWrapper(async (req, res, next) => {
   const countValues = categoryId ? [validatedProps.data.categoryId] : [];
 
   const countRequest = await pool.query(countQ, countValues);
-  const totalCount = countRequest.rows[0].count;
+  const totalCount = parseInt(countRequest.rows[0].count);
 
-  const hasNextPage = totalCount > currentPage * limit;
+  const hasNextPage = totalCount > currentPage * BlogLimit;
   const hasPrevPage = currentPage > 1;
   console.log(rows);
   res.json({
+    success: true,
     blogs: rows,
     nextPage: hasNextPage ? currentPage + 1 : null,
     prevPage: hasPrevPage ? currentPage - 1 : null,
@@ -93,8 +100,50 @@ const getSingleBlog = asyncWrapper(async (req, res, next) => {
   res.json({ success: true, blog: rows[0] });
 });
 
+const SearchQueries = z.object({
+  query: z.string().trim(),
+  page: z.coerce.number(),
+  limit: z.coerce.number().nullable(),
+});
+
+const getSearchedBlogs = asyncWrapper(async (req, res, next) => {
+  const { query, page, limit } = req.query;
+  const ValidatedQueries = SearchQueries.safeParse({ query, page, limit });
+  if (!ValidatedQueries.success)
+    return next(createCustomError('Invalid Query', 400));
+
+  const currentPage = parseInt(ValidatedQueries.data.page) || 1;
+  const blogLimit = parseInt(ValidatedQueries.data.limit) || 6;
+  const offset = (currentPage - 1) * blogLimit;
+
+  const { rows } = await pool.query(
+    'SELECT b.* FROM blogs b JOIN users u ON u.id = b.userId WHERE b.title ILIKE $1 OR u.username ILIKE $1 LIMIT $2 OFFSET $3',
+    [`%${query}%`, blogLimit, offset]
+  );
+
+  if (rows.length === 0)
+    return next(createCustomError('Could not find the blog', 404));
+
+  const countRequest = await pool.query(
+    'SELECT COUNT(*) FROM blogs b JOIN users u ON u.id = b.userId WHERE b.title ILIKE $1 OR u.username ILIKE $1'
+  , [`%${query}%`]);
+
+  const totalCount = parseInt(countRequest.rows[0].count);
+  const hasNextPage = totalCount > currentPage * blogLimit;
+  const hasPrevPage = currentPage > 1;
+  console.log(countRequest.rows[0])
+
+  res.json({
+    success: true,
+    blogs: rows,
+    nextPage: hasNextPage ? currentPage + 1 : null,
+    prevPage: hasPrevPage ? currentPage - 1 : null,
+  });
+});
+
 module.exports = {
   insertABlog,
   getBlogs,
   getSingleBlog,
+  getSearchedBlogs,
 };
