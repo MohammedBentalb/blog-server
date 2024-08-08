@@ -5,14 +5,10 @@ const asyncWrapper = require('../middlewares/async');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
 const { v4: uuidv4 } = require('uuid');
+const { RegistrationProps, LoginProps } = require('../util/zod');
 const fs = require('fs').promises;
-const { z } = require('zod');
 
-const RegistrationProps = z.object({
-  username: z.string().trim().min(3),
-  email: z.string().email(),
-  password: z.string().trim().min(8),
-});
+
 
 const register = asyncWrapper(async (req, res, next) => {
   const { username, email, password } = req.body;
@@ -74,10 +70,6 @@ const register = asyncWrapper(async (req, res, next) => {
   res.json({ success: true, data: rows[0] });
 });
 
-const LoginProps = z.object({
-  password: z.string().trim().min(8),
-  email: z.string().email(),
-});
 
 const login = asyncWrapper(async (req, res, next) => {
   const { email, password } = req.body;

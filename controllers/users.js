@@ -2,7 +2,7 @@ const pool = require('../database/db');
 const asyncWrapper = require('../middlewares/async');
 const isValidUUIDV4 = require('../util/uuidV4Regex');
 const { createCustomError } = require('../errors/custom-error');
-const { z } = require('zod');
+const { UserBlogsQueries } = require('../util/zod');
 
 const getSingleUser = asyncWrapper(async (req, res, next) => {
   const { id } = req.params;
@@ -16,10 +16,7 @@ const getSingleUser = asyncWrapper(async (req, res, next) => {
   res.json({ success: true, user: rows[0] });
 });
 
-const UserBlogsQueries = z.object({
-  page: z.coerce.number(),
-  limit: z.coerce.number().nullable(),
-});
+
 
 const getAllBlogsOfUser = asyncWrapper(async (req, res, next) => {
   const { id } = req.params;

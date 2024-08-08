@@ -1,24 +1,26 @@
-const { z } = require('zod');
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../database/db');
 const isValidUUIDV4 = require('../util/uuidV4Regex');
 const asyncWrapper = require('../middlewares/async');
 const { createCustomError } = require('../errors/custom-error');
-const { query } = require('express');
-
-const BlogInsertionProps = z.object({
-  title: z.string().trim().min(3),
-  userId: z.string().trim().min(36),
-  userId: z.string().trim().min(3),
-  categoryId: z.coerce.number().nullable(),
-});
+const { BlogsPaginationProps, BlogInsertionProps, SearchQueries } = require('../util/zod');
 
 const insertABlog = asyncWrapper(async (req, res, next) => {
   const { title, userId, categoryId, body } = req.body;
 
+  const validatedData = BlogInsertionProps.safeParse({
+    title,
+    userId,
+    categoryId,
+    body,
+  });
+
+  if (!validatedData.success)
+    return next(createCustomError('Invalid data', 400));
+
   const { rows } = await pool.query(
     'INSERT INTO blogs (id, title, userId, body, imagePath, categoryId) VALUES($1, $2, $3, $4, $5, $6) RETURNING id, title, userId, body, imagePath, categoryId',
-    [uuidv4(), title, userId, body, req.file ? req.file.path : null, categoryId]
+    [uuidv4(), validatedData.data.title, validatedData.data.userId, validatedData.data.body, req.file ? req.file.path : null, validatedData.data.categoryId]
   );
   if (rows.length === 0)
     return next(createCustomError('failed insertion, try again', 500));
@@ -28,12 +30,6 @@ const insertABlog = asyncWrapper(async (req, res, next) => {
     message: 'Blog post created successfully',
     post: rows[0], // Respond with the inserted post details
   });
-});
-
-const BlogsPaginationProps = z.object({
-  categoryId: z.coerce.number().nullable(),
-  page: z.coerce.number(),
-  limit: z.coerce.number().nullable(),
 });
 
 const getBlogs = asyncWrapper(async (req, res, next) => {
@@ -72,7 +68,7 @@ const getBlogs = asyncWrapper(async (req, res, next) => {
 
   const hasNextPage = totalCount > currentPage * BlogLimit;
   const hasPrevPage = currentPage > 1;
-  console.log(rows);
+  
   res.json({
     success: true,
     blogs: rows,
@@ -100,11 +96,7 @@ const getSingleBlog = asyncWrapper(async (req, res, next) => {
   res.json({ success: true, blog: rows[0] });
 });
 
-const SearchQueries = z.object({
-  query: z.string().trim(),
-  page: z.coerce.number(),
-  limit: z.coerce.number().nullable(),
-});
+
 
 const getSearchedBlogs = asyncWrapper(async (req, res, next) => {
   const { query, page, limit } = req.query;
@@ -125,13 +117,13 @@ const getSearchedBlogs = asyncWrapper(async (req, res, next) => {
     return next(createCustomError('Could not find the blog', 404));
 
   const countRequest = await pool.query(
-    'SELECT COUNT(*) FROM blogs b JOIN users u ON u.id = b.userId WHERE b.title ILIKE $1 OR u.username ILIKE $1'
-  , [`%${query}%`]);
+    'SELECT COUNT(*) FROM blogs b JOIN users u ON u.id = b.userId WHERE b.title ILIKE $1 OR u.username ILIKE $1',
+    [`%${query}%`]
+  );
 
   const totalCount = parseInt(countRequest.rows[0].count);
   const hasNextPage = totalCount > currentPage * blogLimit;
   const hasPrevPage = currentPage > 1;
-  console.log(countRequest.rows[0])
 
   res.json({
     success: true,
