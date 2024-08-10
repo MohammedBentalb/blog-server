@@ -36,6 +36,12 @@ const LoginProps = z.object({
   email: z.string().email(),
 });
 
+const EditBlogProps = z.object({
+  title: z.string().trim().min(3),
+  body: z.string().trim().min(3),
+  categoryId: z.coerce.number().nullable(),
+});
+
 module.exports = {
   BlogsPaginationProps,
   UserBlogsQueries,
@@ -43,4 +49,5 @@ module.exports = {
   SearchQueries,
   RegistrationProps,
   LoginProps,
+  EditBlogProps,
 };

@@ -8,8 +8,6 @@ const { v4: uuidv4 } = require('uuid');
 const { RegistrationProps, LoginProps } = require('../util/zod');
 const fs = require('fs').promises;
 
-
-
 const register = asyncWrapper(async (req, res, next) => {
   const { username, email, password } = req.body;
   // validating the data
@@ -49,7 +47,7 @@ const register = asyncWrapper(async (req, res, next) => {
     }
   );
   const { rows } = await pool.query(
-    'INSERT INTO users(id, username, email, password, imagePath, refreshToken) VALUES($1, $2, $3, $4, $5, $6) RETURNING id, username, email, password, imagePath',
+    'INSERT INTO users(id, username, email, password, imagePath, refreshToken) VALUES($1, $2, $3, $4, $5, $6) RETURNING id, username, email, imagePath',
     [
       uuidv4(),
       validatedData.data.username,
@@ -67,16 +65,15 @@ const register = asyncWrapper(async (req, res, next) => {
     maxAge: 3 * 24 * 60 * 60 * 1000,
     sameSite: 'strict',
   });
-  res.json({ success: true, data: rows[0] });
+  res.json({ success: true, user: rows[0], token });
 });
-
 
 const login = asyncWrapper(async (req, res, next) => {
   const { email, password } = req.body;
   // validating the data
   const validatedData = LoginProps.safeParse({ email, password });
   if (!validatedData.success)
-    return next(createCustomError('Invalid credentials', 401));
+    return next(createCustomError('Invalid credentials', 400));
 
   const { rows } = await pool.query('SELECT * FROM users WHERE email = $1', [
     validatedData.data.email,
@@ -102,7 +99,7 @@ const login = asyncWrapper(async (req, res, next) => {
   );
 
   const newUser = await pool.query(
-    'UPDATE users SET refreshToken = $1 WHERE email = $2 RETURNING id, username, imagePath',
+    'UPDATE users SET refreshToken = $1 WHERE email = $2 RETURNING id, username, email, imagePath',
     [refreshToken, validatedData.data.email]
   );
 
@@ -113,7 +110,7 @@ const login = asyncWrapper(async (req, res, next) => {
     maxAge: 3 * 24 * 60 * 60 * 1000,
   });
 
-  res.json({ success: true, token, newUser: newUser.rows[0] });
+  res.json({ success: true, user: newUser.rows[0], token });
 });
 
 const refresh = asyncWrapper(async (req, res, next) => {
@@ -124,25 +121,17 @@ const refresh = asyncWrapper(async (req, res, next) => {
     [cookie]
   );
   if (rows.length === 0 || !rows[0].refreshtoken)
-    return next(createCustomError('INVALID USER', 401));
+    return next(createCustomError('INVALID USER', 403));
   jwt.verify(cookie, process.env.JWT_REFRESH_TOKEN, async (err, decoded) => {
     if (err || !decoded || decoded.email !== rows[0].email)
       return next(createCustomError('Unauthorized', 401));
 
-    const token = jwt.sign(
-      { email: rows[0].email },
-      process.env.JWT_TOKEN,
-      { expiresIn: '15min' }
-    );
-    
-    const user = {
-      username: rows[0].username,
-      imagePath: rows[0].imagePath,
-      email: rows[0].email,
-      token,
-    };
-
-    res.json({ success: true, user });
+    const token = jwt.sign({ email: rows[0].email }, process.env.JWT_TOKEN, {
+      expiresIn: '15min',
+    });
+    delete rows[0].refreshtoken
+    delete rows[0].password
+    res.json({ success: true, user: rows[0], token });
   });
 });
 

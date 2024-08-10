@@ -1,13 +1,22 @@
+const fs = require('fs').promises;
 const { v4: uuidv4 } = require('uuid');
 const pool = require('../database/db');
 const isValidUUIDV4 = require('../util/uuidV4Regex');
 const asyncWrapper = require('../middlewares/async');
 const { createCustomError } = require('../errors/custom-error');
-const { BlogsPaginationProps, BlogInsertionProps, SearchQueries } = require('../util/zod');
+const {
+  BlogsPaginationProps,
+  BlogInsertionProps,
+  SearchQueries,
+  EditBlogProps,
+} = require('../util/zod');
+
+// const upload = multer({ storage, limits: { fileSize: 1000000 }, fileFilter });
 
 const insertABlog = asyncWrapper(async (req, res, next) => {
   const { title, userId, categoryId, body } = req.body;
 
+  if (!req.file) return next(createCustomError('Invalid data', 400));
   const validatedData = BlogInsertionProps.safeParse({
     title,
     userId,
@@ -15,12 +24,23 @@ const insertABlog = asyncWrapper(async (req, res, next) => {
     body,
   });
 
-  if (!validatedData.success)
+  console.log(req.file);
+
+  if (!validatedData.success) {
+    if (req.file) await fs.unlink(`${req.file.path}`);
     return next(createCustomError('Invalid data', 400));
+  }
 
   const { rows } = await pool.query(
     'INSERT INTO blogs (id, title, userId, body, imagePath, categoryId) VALUES($1, $2, $3, $4, $5, $6) RETURNING id, title, userId, body, imagePath, categoryId',
-    [uuidv4(), validatedData.data.title, validatedData.data.userId, validatedData.data.body, req.file ? req.file.path : null, validatedData.data.categoryId]
+    [
+      uuidv4(),
+      validatedData.data.title,
+      validatedData.data.userId,
+      validatedData.data.body,
+      req.file ? req.file.path : null,
+      validatedData.data.categoryId,
+    ]
   );
   if (rows.length === 0)
     return next(createCustomError('failed insertion, try again', 500));
@@ -41,7 +61,7 @@ const getBlogs = asyncWrapper(async (req, res, next) => {
     limit,
   });
   if (!validatedProps.success)
-    return next(createCustomError('Invalid queries', 401));
+    return next(createCustomError('Invalid queries', 400));
 
   const currentPage = parseInt(validatedProps.data.page) || 1;
   const BlogLimit = parseInt(validatedProps.data.limit) || 6;
@@ -68,7 +88,7 @@ const getBlogs = asyncWrapper(async (req, res, next) => {
 
   const hasNextPage = totalCount > currentPage * BlogLimit;
   const hasPrevPage = currentPage > 1;
-  
+
   res.json({
     success: true,
     blogs: rows,
@@ -95,8 +115,6 @@ const getSingleBlog = asyncWrapper(async (req, res, next) => {
 
   res.json({ success: true, blog: rows[0] });
 });
-
-
 
 const getSearchedBlogs = asyncWrapper(async (req, res, next) => {
   const { query, page, limit } = req.query;
@@ -133,9 +151,47 @@ const getSearchedBlogs = asyncWrapper(async (req, res, next) => {
   });
 });
 
+const editBlog = asyncWrapper(async (req, res, next) => {
+  const { id } = req.params;
+  const { title, body, categoryId } = req.body;
+
+  if (!id || !isValidUUIDV4(id)) {
+    if (req.file) await fs.unlink(req.file.path);
+    return next(createCustomError('Invalid params', 400));
+  }
+
+  const validatedData = EditBlogProps.safeParse({ title, body, categoryId });
+  if (!validatedData.success)
+    return next(createCustomError('Invalid data', 400));
+
+  const queryClause = req.file
+    ? 'UPDATE blogs SET title = $1, body = $2, categoryId = $3, imagePath = $4 WHERE id = $5 RETURNING *'
+    : 'UPDATE blogs SET title = $1, body = $2, categoryId = $3 WHERE id = $4 RETURNING *';
+  const values = req.file
+    ? [
+        validatedData.data.title,
+        validatedData.data.body,
+        validatedData.data.categoryId,
+        req.file.path,
+        id,
+      ]
+    : [
+        validatedData.data.title,
+        validatedData.data.body,
+        validatedData.data.categoryId,
+        id,
+      ];
+  const { rows } = await pool.query(queryClause, values);
+  if (rows.length === 0)
+    return next(createCustomError('could not update the blog', 400));
+
+  res.json({ success: true, newBlog: rows[0] });
+});
+
 module.exports = {
   insertABlog,
   getBlogs,
   getSingleBlog,
   getSearchedBlogs,
+  editBlog,
 };

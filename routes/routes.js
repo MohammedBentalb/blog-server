@@ -1,14 +1,16 @@
-const multer = require('multer');
 const Router = require('express').Router();
+const multer = require('multer');
 const controller = require('../controllers/blogs');
 const userController = require('../controllers/users');
 const { fileFilter, multerConfig } = require('../util/MulterConfig');
-const storage = multerConfig(multer, 'public/images/blogs');
 
+
+const storage = multerConfig(multer, 'public/images/blogs');
 const upload = multer({ storage, limits: { fileSize: 1000000 }, fileFilter });
 
 // Blogs
 Router.post('/blogs', upload.single('image'), controller.insertABlog); // Post a blog
+Router.put('/blogs/:id', upload.single('image'), controller.editBlog); // Edit a blog
 Router.get('/blogs/:id', controller.getSingleBlog); // Get a single blog
 Router.get('/blogs', controller.getBlogs); // Get all blogs
 
