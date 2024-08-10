@@ -160,17 +160,23 @@ const editBlog = asyncWrapper(async (req, res, next) => {
     return next(createCustomError('Invalid params', 400));
   }
 
-  const validatedData = EditBlogProps.safeParse({ title, body, categoryId });
+  const validatedData = EditBlogProps.safeParse({
+    title,
+    body,
+    categoryId,
+    
+  });
   if (!validatedData.success)
     return next(createCustomError('Invalid data', 400));
 
+  
   const oldBlog = await pool.query('SELECT * FROM blogs WHERE id = $1', [id]);
   if (oldBlog.rows.length === 0)
     return next(createCustomError('blog could not be found', 404));
 
   if (oldBlog.rows[0].imagepath) {
     await fs.unlink(oldBlog.rows[0].imagepath);
-  }
+  } 
 
   const queryClause = req.file
     ? 'UPDATE blogs SET title = $1, body = $2, categoryId = $3, imagePath = $4 WHERE id = $5 RETURNING *'
