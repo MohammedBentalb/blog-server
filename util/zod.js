@@ -42,6 +42,11 @@ const EditBlogProps = z.object({
   categoryId: z.coerce.number().nullable(),
 });
 
+const CommentsProps = z.object({
+  comment: z.string().trim().min(3),
+  username: z.string().trim().min(3),
+});
+
 module.exports = {
   BlogsPaginationProps,
   UserBlogsQueries,
@@ -50,4 +55,5 @@ module.exports = {
   RegistrationProps,
   LoginProps,
   EditBlogProps,
+  CommentsProps,
 };

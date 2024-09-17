@@ -1,0 +1,39 @@
+CREATE TABLE users(
+	"id" VARCHAR(255) PRIMARY KEY NOT NULL,
+	"username" VARCHAR(255) NOT NULL,
+	"email" VARCHAR(255) NOT NULL UNIQUE,
+	"password" VARCHAR(255) NOT NULL,
+	"userImagePath" VARCHAR(255),
+    "refreshToken" TEXT,
+	"role" varchar(255),
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE categories (
+	"id" VARCHAR(255) PRIMARY KEY,
+	"name" VARCHAR(255) NOT NULL UNIQUE
+);
+
+CREATE TABLE blogs(
+	"id" VARCHAR(255) PRIMARY KEY NOT NULL,
+	"title" TEXT NOT NULL,
+	"userId" VARCHAR(255) NOT NULL,
+	"body" TEXT NOT NULL,
+	"context" TEXT NOT NULL,
+	"blogImagePath" VARCHAR(255) NOT NULL,
+	"categoryId" VARCHAR(255),
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+	CONSTRAINT fk_user_blogs FOREIGN KEY("userId") REFERENCES users(id) ON DELETE CASCADE,
+	CONSTRAINT fk_category_blogs FOREIGN KEY("categoryId") REFERENCES categories(id) ON DELETE SET NULL
+);
+
+CREATE TABLE comments(
+    "id" varchar(255) PRIMARY KEY NOT NULL,
+    "userId" VARCHAR(255) NOT NULL,
+    "blogId" VARCHAR(255) NOT NULL,
+    "username" VARCHAR(255) NOT NULL,
+    "comment" TEXT NOT NULL,
+    "createdAt" TIMESTAMP WITH TIME ZONE DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT fk_user_comments FOREIGN KEY("userId") REFERENCES users(id) ON DELETE CASCADE,
+    CONSTRAINT fk_blog_comments FOREIGN KEY("blogId") REFERENCES blogs(id) ON DELETE CASCADE
+)

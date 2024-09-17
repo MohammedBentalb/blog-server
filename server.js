@@ -17,10 +17,10 @@ server.use(cookieParser());
 server.use(express.json());
 
 // Routes
-server.use(AuthRouter); // Login and register
-server.use(verifyJWT); //Verify the jwt
-server.use(Router); // Remaining routes
-server.use(express.static('public')); // Including public folder for images path
+server.use('/api', express.static('public')); // Including public folder for images path
+server.use('/api', AuthRouter); // Login and register
+server.use('/api', verifyJWT); //Verify the jwt
+server.use('/api', Router); // Remaining routes
 
 server.use(notFound); // Handling none existing routes
 server.use(ErrorHandlerMiddleware); // Error handler

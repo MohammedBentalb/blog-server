@@ -4,7 +4,7 @@ const authController = require('../controllers/auth');
 const { multerConfig, fileFilter } = require('../util/MulterConfig');
 
 const storage = multerConfig(multer, 'public/images/personal');
-const upload = multer({ storage, limits: { fileSize: 1000000 }, fileFilter });
+const upload = multer({ storage, limits: { fileSize: 5000000 }, fileFilter });
 
 // authentication
 AuthRouter.post('/login', authController.login); // login
